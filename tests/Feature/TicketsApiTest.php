@@ -3,7 +3,6 @@
 use App\Enums\IssueType;
 use App\Enums\TicketSeverity;
 use App\Enums\TicketStatus;
-use App\Models\Reporter;
 use App\Models\System;
 use App\Models\Ticket;
 use App\Models\User;
@@ -41,7 +40,6 @@ describe('GET /api/tickets', function (): void {
 
         $system = System::factory()->create(['name' => 'NexaPortal Clientes']);
         $system->developers()->attach($user->id);
-        $reporter = Reporter::factory()->create(['name' => 'Lucia Mendoza', 'email' => 'lucia@acme.test']);
         $assignee = User::factory()->agent()->create([
             'public_id' => 'usr_margaret',
             'name' => 'Margaret Hamilton',
@@ -51,20 +49,29 @@ describe('GET /api/tickets', function (): void {
 
         $this->travelTo(now()->startOfSecond());
 
-        $oldest = Ticket::factory()->for($system)->for($reporter)->create([
+        $oldest = Ticket::factory()->for($system)->create([
             'code' => 'INC-1001',
+            'reporter_external_id' => 'usr_lucia_01',
+            'reporter_name' => 'Lucia Mendoza',
+            'reporter_email' => 'lucia@acme.test',
             'created_at' => now()->subDays(3),
             'updated_at' => now()->subDays(3),
         ]);
 
-        $middle = Ticket::factory()->for($system)->for($reporter)->create([
+        $middle = Ticket::factory()->for($system)->create([
             'code' => 'INC-1002',
+            'reporter_external_id' => 'usr_lucia_01',
+            'reporter_name' => 'Lucia Mendoza',
+            'reporter_email' => 'lucia@acme.test',
             'created_at' => now()->subDay(),
             'updated_at' => now()->subDay(),
         ]);
 
-        $newest = Ticket::factory()->for($system)->for($reporter)->create([
+        $newest = Ticket::factory()->for($system)->create([
             'code' => 'INC-1003',
+            'reporter_external_id' => 'usr_lucia_01',
+            'reporter_name' => 'Lucia Mendoza',
+            'reporter_email' => 'lucia@acme.test',
             'assignee_id' => $assignee->id,
             'issue_type' => IssueType::BlocksFlow,
             'severity' => TicketSeverity::P1,
@@ -75,7 +82,7 @@ describe('GET /api/tickets', function (): void {
         ]);
 
         // Create 9 more older tickets so total is 12 and pageSize=10 yields 2 pages.
-        Ticket::factory()->count(9)->for($system)->for($reporter)->create([
+        Ticket::factory()->count(9)->for($system)->create([
             'created_at' => now()->subDays(5),
             'updated_at' => now()->subDays(5),
         ]);
@@ -96,7 +103,7 @@ describe('GET /api/tickets', function (): void {
             ->assertJsonPath('data.items.0.status', 'open')
             ->assertJsonPath('data.items.0.system', 'NexaPortal Clientes')
             ->assertJsonPath('data.items.0.reporter', [
-                'id' => $reporter->id,
+                'id' => 'usr_lucia_01',
                 'name' => 'Lucia Mendoza',
                 'email' => 'lucia@acme.test',
             ])
@@ -123,15 +130,16 @@ describe('GET /api/tickets', function (): void {
         $nexa = System::factory()->create(['name' => 'NexaPortal Clientes']);
         $kroma = System::factory()->create(['name' => 'KromaShop B2B']);
 
-        $lucia = Reporter::factory()->create(['name' => 'Lucia Mendoza', 'email' => 'lucia@acmecorp.es']);
-        $carlos = Reporter::factory()->create(['name' => 'Carlos Paredes', 'email' => 'carlos@norte.com']);
-
-        Ticket::factory()->for($nexa)->for($lucia)->create([
+        Ticket::factory()->for($nexa)->create([
             'code' => 'INC-2001',
+            'reporter_name' => 'Lucia Mendoza',
+            'reporter_email' => 'lucia@acmecorp.es',
             'description' => 'Error al confirmar tarjeta corporativa 3DS.',
         ]);
-        Ticket::factory()->for($kroma)->for($carlos)->create([
+        Ticket::factory()->for($kroma)->create([
             'code' => 'INC-2002',
+            'reporter_name' => 'Carlos Paredes',
+            'reporter_email' => 'carlos@norte.com',
             'description' => 'Catálogo B2B tarda en cargar.',
         ]);
 
@@ -166,27 +174,26 @@ describe('GET /api/tickets', function (): void {
 
         $veloce = System::factory()->create(['name' => 'VelocePay Checkout']);
         $pulse = System::factory()->create(['name' => 'PulseHR Nomina']);
-        $reporter = Reporter::factory()->create();
 
-        $p4Ticket = Ticket::factory()->for($veloce)->for($reporter)->open()->create([
+        $p4Ticket = Ticket::factory()->for($veloce)->open()->create([
             'code' => 'INC-3001',
             'severity' => TicketSeverity::P4,
             'issue_type' => IssueType::Other,
         ]);
 
-        $p1Ticket = Ticket::factory()->for($veloce)->for($reporter)->inProgress()->create([
+        $p1Ticket = Ticket::factory()->for($veloce)->inProgress()->create([
             'code' => 'INC-3002',
             'severity' => TicketSeverity::P1,
             'issue_type' => IssueType::BlocksFlow,
         ]);
 
-        $p3Ticket = Ticket::factory()->for($pulse)->for($reporter)->resolved()->create([
+        $p3Ticket = Ticket::factory()->for($pulse)->resolved()->create([
             'code' => 'INC-3003',
             'severity' => TicketSeverity::P3,
             'issue_type' => IssueType::Slow,
         ]);
 
-        $p2Ticket = Ticket::factory()->for($veloce)->for($reporter)->inReview()->create([
+        $p2Ticket = Ticket::factory()->for($veloce)->inReview()->create([
             'code' => 'INC-3004',
             'severity' => TicketSeverity::P2,
             'issue_type' => IssueType::NotWorking,
@@ -253,10 +260,9 @@ describe('GET /api/tickets', function (): void {
     it('scopes ticket list to assigned systems for developers while keeping agent and admin global', function (): void {
         $assignedSystem = System::factory()->create(['name' => 'AssignedApp']);
         $unassignedSystem = System::factory()->create(['name' => 'UnassignedApp']);
-        $reporter = Reporter::factory()->create();
 
-        Ticket::factory()->for($assignedSystem)->for($reporter)->create(['code' => 'INC-4001']);
-        Ticket::factory()->for($unassignedSystem)->for($reporter)->create(['code' => 'INC-4002']);
+        Ticket::factory()->for($assignedSystem)->create(['code' => 'INC-4001']);
+        Ticket::factory()->for($unassignedSystem)->create(['code' => 'INC-4002']);
 
         $developer = User::factory()->developer()->create();
         $assignedSystem->developers()->attach($developer->id);
@@ -309,18 +315,17 @@ describe('GET /api/tickets/summary', function (): void {
         $zeta = System::factory()->create(['name' => 'Zeta App']);
         $alpha = System::factory()->create(['name' => 'Alpha App']);
         System::factory()->create(['name' => 'Empty App']);
-        $reporter = Reporter::factory()->create();
 
         // Active P1 open -> counts in total, criticalP1, inProgress
-        Ticket::factory()->for($zeta)->for($reporter)->open()->withSeverity(TicketSeverity::P1)->create();
+        Ticket::factory()->for($zeta)->open()->withSeverity(TicketSeverity::P1)->create();
         // Active P1 in_review -> counts in total, criticalP1 (not inProgress per spec)
-        Ticket::factory()->for($alpha)->for($reporter)->inReview()->withSeverity(TicketSeverity::P1)->create();
+        Ticket::factory()->for($alpha)->inReview()->withSeverity(TicketSeverity::P1)->create();
         // Resolved P1 -> counts in total, resolved (NOT criticalP1)
-        Ticket::factory()->for($alpha)->for($reporter)->resolved()->withSeverity(TicketSeverity::P1)->create();
+        Ticket::factory()->for($alpha)->resolved()->withSeverity(TicketSeverity::P1)->create();
         // Active P2 in_progress -> counts in total, inProgress
-        Ticket::factory()->for($alpha)->for($reporter)->inProgress()->withSeverity(TicketSeverity::P2)->create();
+        Ticket::factory()->for($alpha)->inProgress()->withSeverity(TicketSeverity::P2)->create();
         // Closed P4 -> counts in total, resolved
-        Ticket::factory()->for($zeta)->for($reporter)->closed()->withSeverity(TicketSeverity::P4)->create();
+        Ticket::factory()->for($zeta)->closed()->withSeverity(TicketSeverity::P4)->create();
 
         $response = $this->getJson('/api/tickets/summary');
 
@@ -341,19 +346,18 @@ describe('GET /api/tickets/summary', function (): void {
         $assignedAlpha = System::factory()->create(['name' => 'Assigned Alpha']);
         $assignedEmpty = System::factory()->create(['name' => 'Assigned Empty']);
         $unassignedBeta = System::factory()->create(['name' => 'Unassigned Beta']);
-        $reporter = Reporter::factory()->create();
 
         $developer = User::factory()->developer()->create();
         $developer->systems()->attach([$assignedAlpha->id, $assignedEmpty->id]);
 
         // Assigned system tickets: 1 active P1 open, 1 resolved P3
-        Ticket::factory()->for($assignedAlpha)->for($reporter)->open()->withSeverity(TicketSeverity::P1)->create();
-        Ticket::factory()->for($assignedAlpha)->for($reporter)->resolved()->withSeverity(TicketSeverity::P3)->create();
+        Ticket::factory()->for($assignedAlpha)->open()->withSeverity(TicketSeverity::P1)->create();
+        Ticket::factory()->for($assignedAlpha)->resolved()->withSeverity(TicketSeverity::P3)->create();
 
         // Unassigned system tickets: should be excluded for the developer
-        Ticket::factory()->for($unassignedBeta)->for($reporter)->open()->withSeverity(TicketSeverity::P1)->create();
-        Ticket::factory()->for($unassignedBeta)->for($reporter)->inProgress()->withSeverity(TicketSeverity::P2)->create();
-        Ticket::factory()->for($unassignedBeta)->for($reporter)->closed()->withSeverity(TicketSeverity::P4)->create();
+        Ticket::factory()->for($unassignedBeta)->open()->withSeverity(TicketSeverity::P1)->create();
+        Ticket::factory()->for($unassignedBeta)->inProgress()->withSeverity(TicketSeverity::P2)->create();
+        Ticket::factory()->for($unassignedBeta)->closed()->withSeverity(TicketSeverity::P4)->create();
 
         Sanctum::actingAs($developer);
 
@@ -413,14 +417,12 @@ describe('GET /api/tickets/{code}', function (): void {
 
         $this->travelTo(now()->startOfSecond());
         $system = System::factory()->create(['name' => 'OrionCRM Ventas']);
-        $reporter = Reporter::factory()->create([
-            'id' => 'usr_8129',
-            'name' => 'Diego Santamaria',
-            'email' => 'diego@orion.com',
-        ]);
 
-        $ticket = Ticket::factory()->for($system)->for($reporter)->open()->create([
+        $ticket = Ticket::factory()->for($system)->open()->create([
             'code' => 'INC-2040',
+            'reporter_external_id' => 'usr_8129',
+            'reporter_name' => 'Diego Santamaria',
+            'reporter_email' => 'diego@orion.com',
             'severity' => TicketSeverity::P2,
             'sla_due_at' => now()->addMinutes(120),
             'assignee_id' => null,
@@ -449,10 +451,9 @@ describe('GET /api/tickets/{code}', function (): void {
     it('allows developers to view tickets in assigned systems and returns 403 ERR_FORBIDDEN for unassigned systems while agent and admin remain global', function (): void {
         $assignedSystem = System::factory()->create(['name' => 'Assigned System']);
         $unassignedSystem = System::factory()->create(['name' => 'Unassigned System']);
-        $reporter = Reporter::factory()->create();
 
-        $assignedTicket = Ticket::factory()->for($assignedSystem)->for($reporter)->create(['code' => 'INC-5001']);
-        $unassignedTicket = Ticket::factory()->for($unassignedSystem)->for($reporter)->create(['code' => 'INC-5002']);
+        $assignedTicket = Ticket::factory()->for($assignedSystem)->create(['code' => 'INC-5001']);
+        $unassignedTicket = Ticket::factory()->for($unassignedSystem)->create(['code' => 'INC-5002']);
 
         $developer = User::factory()->developer()->create();
         $assignedSystem->developers()->attach($developer->id);
@@ -542,10 +543,9 @@ describe('PATCH /api/tickets/{code}/status', function (): void {
     it('allows developers to update status for assigned system tickets and returns 403 ERR_FORBIDDEN for unassigned systems while agent and admin remain global', function (): void {
         $assignedSystem = System::factory()->create(['name' => 'Assigned System']);
         $unassignedSystem = System::factory()->create(['name' => 'Unassigned System']);
-        $reporter = Reporter::factory()->create();
 
-        $assignedTicket = Ticket::factory()->for($assignedSystem)->for($reporter)->open()->create(['code' => 'INC-5003']);
-        $unassignedTicket = Ticket::factory()->for($unassignedSystem)->for($reporter)->open()->create(['code' => 'INC-5004']);
+        $assignedTicket = Ticket::factory()->for($assignedSystem)->open()->create(['code' => 'INC-5003']);
+        $unassignedTicket = Ticket::factory()->for($unassignedSystem)->open()->create(['code' => 'INC-5004']);
 
         $developer = User::factory()->developer()->create();
         $assignedSystem->developers()->attach($developer->id);
@@ -600,7 +600,9 @@ describe('POST /api/tickets', function (): void {
             (string) base64_decode(TEST_PNG_BASE64),
         );
 
-        $response = $this->withHeaders([
+        $response = $this->withServerVariables([
+            'REMOTE_ADDR' => '203.0.113.45',
+        ])->withHeaders([
             'X-System-Key' => 'sk_sys_test_key_01',
         ])->post('/api/tickets', [
             'description' => 'El botón de pago no responde.',
@@ -626,36 +628,48 @@ describe('POST /api/tickets', function (): void {
                 'email' => 'elena@finanzaspro.io',
             ])
             ->assertJsonPath('data.browser', 'Chrome 131 / macOS')
+            ->assertJsonPath('data.ipAddress', '203.0.113.45')
             ->assertJsonPath('data.slaMinutesRemaining', 60);
 
         $ticket = Ticket::query()->where('code', 'INC-2057')->firstOrFail();
-        expect($ticket->screenshot_path)->toStartWith('screenshots/');
+        expect($ticket->screenshot_path)->toStartWith('screenshots/')
+            ->and($ticket->ip_address)->toBe('203.0.113.45');
         Storage::disk('public')->assertExists((string) $ticket->screenshot_path);
         expect($response->json('data.screenshotUrl'))->toContain($ticket->screenshot_path);
     });
 
-    it('creates a ticket with a base64 screenshot and updates an existing reporter by external id', function (): void {
+    it('creates a ticket with a base64 screenshot and keeps reporter snapshots isolated across systems', function (): void {
         Storage::fake('public');
         $this->travelTo(now()->startOfSecond());
 
-        $system = System::factory()->create([
+        $systemA = System::factory()->create([
+            'domain' => 'sai.veloce.io',
+            'api_key' => 'sk_sys_sai_iso_01',
+        ]);
+        $systemB = System::factory()->create([
             'domain' => 'checkout.veloce.io',
             'api_key' => 'sk_sys_veloce_01',
         ]);
 
-        Reporter::factory()->create([
-            'id' => 'usr_ext_500',
-            'name' => 'Old Name',
-            'email' => 'old@example.com',
+        $firstResponse = $this->withHeaders([
+            'X-System-Key' => 'sk_sys_sai_iso_01',
+        ])->postJson('/api/tickets', [
+            'description' => 'Error de sesion en sistema A.',
+            'issueType' => 'not_working',
+            'reporterName' => 'Ana System A',
+            'reporterEmail' => 'ana@systema.io',
+            'reporterExternalId' => 'usr_ext_500',
         ]);
+
+        $firstResponse->assertCreated();
 
         $response = $this->withHeaders([
             'X-System-Key' => 'sk_sys_veloce_01',
         ])->postJson('/api/tickets', [
             'description' => 'La tabla se desborda en móvil.',
             'issueType' => 'visual',
-            'reporterName' => 'New Name',
-            'reporterEmail' => 'new@example.com',
+            'reporterName' => 'Carlos System B',
+            'reporterEmail' => 'carlos@systemb.io',
             'reporterExternalId' => 'usr_ext_500',
             'screenshot' => 'data:image/png;base64,'.TEST_PNG_BASE64,
         ]);
@@ -663,12 +677,17 @@ describe('POST /api/tickets', function (): void {
         $response->assertCreated()
             ->assertJsonPath('data.severity', 'P4')
             ->assertJsonPath('data.slaMinutesRemaining', 4320)
-            ->assertJsonPath('data.reporter.name', 'New Name')
-            ->assertJsonPath('data.reporter.email', 'new@example.com');
+            ->assertJsonPath('data.reporter.name', 'Carlos System B')
+            ->assertJsonPath('data.reporter.email', 'carlos@systemb.io');
 
+        $firstTicket = Ticket::query()->where('code', $firstResponse->json('data.id'))->firstOrFail();
         $ticket = Ticket::query()->where('code', $response->json('data.id'))->firstOrFail();
-        expect($ticket->system_id)->toBe($system->id);
-        expect($ticket->screenshot_path)->toStartWith('screenshots/')->toEndWith('.png');
+
+        expect($firstTicket->system_id)->toBe($systemA->id)
+            ->and($firstTicket->reporter_name)->toBe('Ana System A')
+            ->and($ticket->system_id)->toBe($systemB->id)
+            ->and($ticket->reporter_name)->toBe('Carlos System B')
+            ->and($ticket->screenshot_path)->toStartWith('screenshots/')->toEndWith('.png');
         Storage::disk('public')->assertExists((string) $ticket->screenshot_path);
     });
 
@@ -769,12 +788,13 @@ describe('POST /api/tickets', function (): void {
 
     it('falls back to TicketSeverity::fromIssueType when creating a Ticket with null severity via Eloquent', function (IssueType $issueType, TicketSeverity $expectedSeverity): void {
         $system = System::factory()->create();
-        $reporter = Reporter::factory()->create();
 
         $ticket = Ticket::create([
             'code' => 'INC-9001',
             'system_id' => $system->id,
-            'reporter_id' => $reporter->id,
+            'reporter_external_id' => 'usr_9001',
+            'reporter_name' => 'Test Reporter',
+            'reporter_email' => 'reporter@example.com',
             'description' => 'Fallback severity check.',
             'issue_type' => $issueType,
             'severity' => null,

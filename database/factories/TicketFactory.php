@@ -5,7 +5,6 @@ namespace Database\Factories;
 use App\Enums\IssueType;
 use App\Enums\TicketSeverity;
 use App\Enums\TicketStatus;
-use App\Models\Reporter;
 use App\Models\System;
 use App\Models\Ticket;
 use App\Models\User;
@@ -29,7 +28,9 @@ class TicketFactory extends Factory
         return [
             'code' => 'INC-'.fake()->unique()->numberBetween(1000, 99999),
             'system_id' => System::factory(),
-            'reporter_id' => Reporter::factory(),
+            'reporter_external_id' => 'usr_'.strtolower(fake()->bothify('????####')),
+            'reporter_name' => fake()->name(),
+            'reporter_email' => fake()->safeEmail(),
             'assignee_id' => null,
             'description' => fake()->paragraph(),
             'issue_type' => $issueType,

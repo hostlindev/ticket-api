@@ -37,6 +37,7 @@ class PixibotIngestionController extends Controller
             'parent_ticket_id' => $parentTicket?->id,
             'parent_ticket_code' => $parentTicket?->code,
             'layer_detected' => $result['layer'],
+            'ip_address' => $ticket->ip_address,
             'is_duplicate' => $result['isDuplicate'],
             'already_resolved' => $result['alreadyResolved'],
             'user_message' => $this->resolveUserMessage($result['alreadyResolved'], $result['isDuplicate']),

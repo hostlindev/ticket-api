@@ -28,9 +28,9 @@ class TicketResource extends JsonResource
             'status' => $this->status->value,
             'system' => $this->system->name,
             'reporter' => [
-                'id' => $this->reporter->id,
-                'name' => $this->reporter->name,
-                'email' => $this->reporter->email,
+                'id' => $this->reporter_external_id,
+                'name' => $this->reporter_name,
+                'email' => $this->reporter_email,
             ],
             'screenshotUrl' => $this->screenshot_path
                 ? Storage::disk('public')->url($this->screenshot_path)

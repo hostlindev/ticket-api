@@ -7,7 +7,6 @@ use App\Enums\IssueType;
 use App\Enums\TicketSeverity;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
-use App\Models\Reporter;
 use App\Models\System;
 use App\Models\Ticket;
 use App\Models\User;
@@ -19,16 +18,15 @@ use Illuminate\Support\Facades\Hash;
 class DevelopmentSeeder extends Seeder
 {
     /**
-     * Seed realistic development data for team members, systems, reporters, and tickets.
+     * Seed realistic development data for team members, systems, and tickets.
      */
     public function run(): void
     {
         $password = Hash::make('Ticket123!');
         $users = $this->seedTeamMembers($password);
         $systems = $this->seedSystems($users);
-        $reporters = $this->seedReporters();
 
-        $this->seedTickets($systems, $reporters, $users);
+        $this->seedTickets($systems, $this->reporterProfiles(), $users);
     }
 
     /**
@@ -261,13 +259,13 @@ class DevelopmentSeeder extends Seeder
     }
 
     /**
-     * Create realistic end-user reporters.
+     * Return realistic end-user reporter snapshots to inline on seeded tickets.
      *
-     * @return list<Reporter>
+     * @return list<array{id: string, name: string, email: string}>
      */
-    private function seedReporters(): array
+    private function reporterProfiles(): array
     {
-        $records = [
+        return [
             ['id' => 'usr_8120', 'name' => 'Lucía Mendoza', 'email' => 'lucia.mendoza@acmecorp.es'],
             ['id' => 'usr_8121', 'name' => 'Carlos Paredes', 'email' => 'c.paredes@distribuidora-norte.com'],
             ['id' => 'usr_8122', 'name' => 'Elena Navarro', 'email' => 'elena.navarro@finanzaspro.io'],
@@ -283,21 +281,13 @@ class DevelopmentSeeder extends Seeder
             ['id' => 'usr_8132', 'name' => 'Mariana Ibarra', 'email' => 'mibarra@nimbuslegal.es'],
             ['id' => 'usr_8133', 'name' => 'Tomás Aguirre', 'email' => 'taguirre@comercialb2b.com'],
         ];
-
-        $reporters = [];
-
-        foreach ($records as $record) {
-            $reporters[] = Reporter::query()->create($record);
-        }
-
-        return $reporters;
     }
 
     /**
      * Seed 56 realistic tickets distributed across the last 7 days.
      *
      * @param  Collection<string, System>  $systems
-     * @param  list<Reporter>  $reporters
+     * @param  list<array{id: string, name: string, email: string}>  $reporters
      * @param  Collection<string, User>  $users
      */
     private function seedTickets(Collection $systems, array $reporters, Collection $users): void
@@ -403,7 +393,9 @@ class DevelopmentSeeder extends Seeder
             $ticket = new Ticket([
                 'code' => sprintf('INC-%d', $codeNumber),
                 'system_id' => $systemId,
-                'reporter_id' => $reporter->id,
+                'reporter_external_id' => $reporter['id'],
+                'reporter_name' => $reporter['name'],
+                'reporter_email' => $reporter['email'],
                 'assignee_id' => $assigneeId,
                 'resolved_by_id' => $resolvedAt !== null ? $assigneeId : null,
                 'description' => $description,

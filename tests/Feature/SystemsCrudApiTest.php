@@ -3,7 +3,6 @@
 use App\Enums\AppHealth;
 use App\Enums\TicketSeverity;
 use App\Enums\UserRole;
-use App\Models\Reporter;
 use App\Models\System;
 use App\Models\Ticket;
 use App\Models\User;
@@ -474,7 +473,6 @@ describe('DELETE /api/systems/{system}', function (): void {
             'public_id' => 'usr_grace',
             'name' => 'Grace Hopper',
         ]);
-        $reporter = Reporter::factory()->create();
 
         $doomedSystem = System::factory()->create([
             'id' => 'app-doomed',
@@ -493,15 +491,15 @@ describe('DELETE /api/systems/{system}', function (): void {
         $doomedSystem->developers()->attach([$admin->id, $developer->id]);
         $survivingSystem->developers()->attach([$admin->id, $developer->id]);
 
-        $doomedTicketOne = Ticket::factory()->for($doomedSystem)->for($reporter)->open()->create([
+        $doomedTicketOne = Ticket::factory()->for($doomedSystem)->open()->create([
             'code' => 'INC-2050',
             'severity' => TicketSeverity::P1,
         ]);
-        $doomedTicketTwo = Ticket::factory()->for($doomedSystem)->for($reporter)->inProgress()->create([
+        $doomedTicketTwo = Ticket::factory()->for($doomedSystem)->inProgress()->create([
             'code' => 'INC-2099',
             'severity' => TicketSeverity::P2,
         ]);
-        $survivingTicket = Ticket::factory()->for($survivingSystem)->for($reporter)->open()->create([
+        $survivingTicket = Ticket::factory()->for($survivingSystem)->open()->create([
             'code' => 'INC-2040',
             'severity' => TicketSeverity::P3,
         ]);

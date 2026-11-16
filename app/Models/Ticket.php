@@ -20,7 +20,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'code',
     'system_id',
     'parent_ticket_id',
-    'reporter_id',
+    'reporter_external_id',
+    'reporter_name',
+    'reporter_email',
     'assignee_id',
     'resolved_by_id',
     'description',
@@ -110,16 +112,6 @@ class Ticket extends Model
     }
 
     /**
-     * End user who reported the ticket.
-     *
-     * @return BelongsTo<Reporter, $this>
-     */
-    public function reporter(): BelongsTo
-    {
-        return $this->belongsTo(Reporter::class, 'reporter_id');
-    }
-
-    /**
      * Team member who resolved the ticket, even if they were later removed.
      *
      * @return BelongsTo<User, $this>
@@ -179,7 +171,6 @@ class Ticket extends Model
     {
         return $query->with([
             'system:id,name,domain',
-            'reporter:id,name,email',
             'assignee:id,public_id,name,email,role,specialty',
             'resolvedBy:id,public_id,name,email,role,specialty,deleted_at',
         ]);
@@ -291,10 +282,9 @@ class Ticket extends Model
         $query->where(function (Builder $builder) use ($like): void {
             $builder->where('code', 'like', $like)
                 ->orWhere('description', 'like', $like)
-                ->orWhereHas('system', fn (Builder $systemQuery): Builder => $systemQuery->where('name', 'like', $like))
-                ->orWhereHas('reporter', fn (Builder $reporterQuery): Builder => $reporterQuery
-                    ->where('name', 'like', $like)
-                    ->orWhere('email', 'like', $like));
+                ->orWhere('reporter_name', 'like', $like)
+                ->orWhere('reporter_email', 'like', $like)
+                ->orWhereHas('system', fn (Builder $systemQuery): Builder => $systemQuery->where('name', 'like', $like));
         });
     }
 

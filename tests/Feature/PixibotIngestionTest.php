@@ -295,7 +295,9 @@ it('ingests frontend widget multipart payload on POST /api/tickets when source i
 
     $screenshot = UploadedFile::fake()->image('widget-error.jpg', 120, 80);
 
-    $response = $this->post('/api/tickets', [
+    $response = $this->withServerVariables([
+        'REMOTE_ADDR' => '198.51.100.24',
+    ])->post('/api/tickets', [
         'issue_type' => 'blocks_flow',
         'description' => 'El formulario de registro falla al enviar los datos del paciente.',
         'system' => 'SAI',
@@ -319,6 +321,7 @@ it('ingests frontend widget multipart payload on POST /api/tickets when source i
 
     $response->assertCreated()
         ->assertJsonPath('layer_detected', 'backend')
+        ->assertJsonPath('ip_address', '198.51.100.24')
         ->assertJsonPath('is_duplicate', false)
         ->assertJsonPath('already_resolved', false)
         ->assertJsonPath('user_message', 'Reporte registrado correctamente.');
@@ -328,6 +331,10 @@ it('ingests frontend widget multipart payload on POST /api/tickets when source i
 
     expect($ticket->issue_type)->toBe(IssueType::BlocksFlow)
         ->and($ticket->system->name)->toBe('SAI')
+        ->and($ticket->ip_address)->toBe('198.51.100.24')
+        ->and($ticket->reporter_external_id)->toBe('42')
+        ->and($ticket->reporter_name)->toBe('Ana Gomez')
+        ->and($ticket->reporter_email)->toBe('agomez@dominio.gob.pa')
         ->and($ticket->module_route)->toBe('/expedientes/:id/editar')
         ->and($ticket->user_agent)->toBe('Chrome 131 / Windows')
         ->and($ticket->reporter_data)->toBe([

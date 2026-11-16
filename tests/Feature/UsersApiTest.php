@@ -2,7 +2,6 @@
 
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
-use App\Models\Reporter;
 use App\Models\System;
 use App\Models\Ticket;
 use App\Models\User;
@@ -113,14 +112,13 @@ it('soft-deletes a user keeping who resolved and was assigned to their resolved 
     ]);
     $system = System::factory()->create();
     $system->developers()->attach($dev->id);
-    $reporter = Reporter::factory()->create();
 
     $resolved = Ticket::factory()->create([
-        'system_id' => $system->id, 'reporter_id' => $reporter->id,
+        'system_id' => $system->id,
         'assignee_id' => $dev->id, 'status' => TicketStatus::Open,
     ]);
     $active = Ticket::factory()->create([
-        'system_id' => $system->id, 'reporter_id' => $reporter->id,
+        'system_id' => $system->id,
         'assignee_id' => $dev->id, 'status' => TicketStatus::InProgress,
     ]);
 

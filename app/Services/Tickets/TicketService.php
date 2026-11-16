@@ -5,7 +5,6 @@ namespace App\Services\Tickets;
 use App\Enums\IssueType;
 use App\Enums\TicketSeverity;
 use App\Enums\TicketStatus;
-use App\Models\Reporter;
 use App\Models\System;
 use App\Models\Ticket;
 use App\Models\User;
@@ -102,7 +101,6 @@ class TicketService
     {
         return $ticket->load([
             'system:id,name,domain',
-            'reporter:id,name,email',
             'assignee:id,public_id,name,email,role,specialty',
             'resolvedBy:id,public_id,name,email,role,specialty,deleted_at',
         ]);
@@ -171,9 +169,12 @@ class TicketService
         $browser = $this->resolveBrowser($data['browser'] ?? null, $userAgent);
         $normalizedIp = $ipAddress !== '' ? Str::limit($ipAddress, 45, '') : '0.0.0.0';
 
+        $reporterSnapshot = $this->resolveReporterSnapshot($data);
+
         $ticket = DB::transaction(function () use (
             $data,
             $system,
+            $reporterSnapshot,
             $issueType,
             $severity,
             $slaDueAt,
@@ -181,12 +182,12 @@ class TicketService
             $browser,
             $normalizedIp,
         ): Ticket {
-            $reporter = $this->resolveReporter($data);
-
             return Ticket::query()->create([
                 'code' => $this->generateNextCode(),
                 'system_id' => $system->id,
-                'reporter_id' => $reporter->id,
+                'reporter_external_id' => $reporterSnapshot['reporter_external_id'],
+                'reporter_name' => $reporterSnapshot['reporter_name'],
+                'reporter_email' => $reporterSnapshot['reporter_email'],
                 'assignee_id' => null,
                 'description' => $data['description'],
                 'issue_type' => $issueType,
@@ -281,7 +282,7 @@ class TicketService
             $isDuplicate = $parentTicket !== null;
             $alreadyResolved = $parentTicket?->status === TicketStatus::Resolved;
 
-            $reporter = $this->resolveReporter([
+            $reporterSnapshot = $this->resolveReporterSnapshot([
                 'reporterExternalId' => $externalId !== '' ? $externalId : null,
                 'reporterName' => (string) $reporterData['name'],
                 'reporterEmail' => $email,
@@ -291,7 +292,9 @@ class TicketService
                 'code' => $this->generateNextCode(),
                 'system_id' => $system->id,
                 'parent_ticket_id' => $parentTicket?->id,
-                'reporter_id' => $reporter->id,
+                'reporter_external_id' => $reporterSnapshot['reporter_external_id'],
+                'reporter_name' => $reporterSnapshot['reporter_name'],
+                'reporter_email' => $reporterSnapshot['reporter_email'],
                 'assignee_id' => null,
                 'description' => $data['description'],
                 'module_route' => $normalizedRoute,
@@ -425,33 +428,28 @@ class TicketService
     }
 
     /**
-     * Create or update the reporter record.
+     * Build the inline reporter snapshot fields stored directly on the ticket.
      *
      * @param  array{
      *     reporterName: string,
      *     reporterEmail: string,
      *     reporterExternalId?: string|null,
      * }  $data
+     * @return array{
+     *     reporter_external_id: string,
+     *     reporter_name: string,
+     *     reporter_email: string,
+     * }
      */
-    private function resolveReporter(array $data): Reporter
+    private function resolveReporterSnapshot(array $data): array
     {
         $externalId = isset($data['reporterExternalId']) ? trim((string) $data['reporterExternalId']) : '';
 
-        if ($externalId !== '') {
-            return Reporter::query()->updateOrCreate(
-                ['id' => $externalId],
-                [
-                    'name' => $data['reporterName'],
-                    'email' => $data['reporterEmail'],
-                ],
-            );
-        }
-
-        return Reporter::query()->create([
-            'id' => 'usr_'.Str::lower(Str::random(8)),
-            'name' => $data['reporterName'],
-            'email' => $data['reporterEmail'],
-        ]);
+        return [
+            'reporter_external_id' => $externalId !== '' ? $externalId : 'usr_'.Str::lower(Str::random(8)),
+            'reporter_name' => $data['reporterName'],
+            'reporter_email' => $data['reporterEmail'],
+        ];
     }
 
     /**
