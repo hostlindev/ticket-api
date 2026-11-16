@@ -74,7 +74,7 @@ it('lists systems with ordered developers wrapped in data for admin', function (
         ]);
 });
 
-it('lists all team members ordered by name wrapped in data for admin', function (): void {
+it('lists non-admin team members ordered by name wrapped in data for admin', function (): void {
     $admin = User::factory()->admin()->create([
         'public_id' => 'usr_ada',
         'name' => 'Ada Lovelace',
@@ -101,12 +101,6 @@ it('lists all team members ordered by name wrapped in data for admin', function 
     $response->assertOk()
         ->assertExactJson([
             'data' => [
-                [
-                    'id' => 'usr_ada',
-                    'name' => 'Ada Lovelace',
-                    'email' => 'admin@ticket.dev',
-                    'specialty' => 'Plataforma',
-                ],
                 [
                     'id' => 'usr_grace',
                     'name' => 'Grace Hopper',

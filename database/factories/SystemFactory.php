@@ -29,7 +29,7 @@ class SystemFactory extends Factory
             'lead_user_id' => User::factory(),
             'health' => AppHealth::Operational,
             'uptime' => fake()->randomFloat(2, 98.50, 99.99),
-            'api_key' => 'sk_sys_'.Str::random(32),
+            'api_key' => System::generateApiKey(),
         ];
     }
 

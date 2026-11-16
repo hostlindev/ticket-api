@@ -29,16 +29,8 @@ class UserFactory extends Factory
             'public_id' => 'usr_'.Str::lower(fake()->unique()->lexify('????????')),
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'role' => UserRole::Developer,
-            'department' => fake()->randomElement([
-                'Frontend & Web Platforms',
-                'Core Backend & APIs',
-                'Payments & Checkout',
-                'QA & Reliability',
-                'Data & Analytics',
-            ]),
             'specialty' => fake()->randomElement([
                 'Plataforma',
                 'Backend',
@@ -46,19 +38,8 @@ class UserFactory extends Factory
                 'QA',
                 'Datos',
             ]),
-            'avatar_url' => null,
             'remember_token' => Str::random(10),
         ];
-    }
-
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
-    public function unverified(): static
-    {
-        return $this->state(fn (array $attributes): array => [
-            'email_verified_at' => null,
-        ]);
     }
 
     /**

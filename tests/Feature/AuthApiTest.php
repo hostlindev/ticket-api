@@ -17,8 +17,6 @@ it('authenticates valid user without remember and issues 8-hour token', function
         'name' => 'Ada Lovelace',
         'email' => 'admin@ticket.dev',
         'password' => Hash::make('Ticket123!'),
-        'department' => 'Frontend & Web Platforms',
-        'avatar_url' => 'https://example.test/ada.png',
     ]);
 
     $zeta = System::factory()->create(['id' => 'app-zeta', 'name' => 'Zeta Portal']);
@@ -43,8 +41,6 @@ it('authenticates valid user without remember and issues 8-hour token', function
                     'name' => 'Ada Lovelace',
                     'email' => 'admin@ticket.dev',
                     'role' => 'admin',
-                    'department' => 'Frontend & Web Platforms',
-                    'avatarUrl' => 'https://example.test/ada.png',
                     'assignedSystems' => ['Alpha Core', 'Zeta Portal'],
                 ],
             ],
@@ -128,8 +124,6 @@ it('returns authenticated user profile wrapped in data on /auth/me', function ()
         'public_id' => 'usr_margaret',
         'name' => 'Margaret Hamilton',
         'email' => 'margaret@ticket.dev',
-        'department' => 'QA & Reliability',
-        'avatar_url' => null,
     ]);
     $system = System::factory()->create(['id' => 'app-nexaportal', 'name' => 'NexaPortal Clientes']);
     $user->systems()->attach($system->id);
@@ -145,8 +139,6 @@ it('returns authenticated user profile wrapped in data on /auth/me', function ()
                 'name' => 'Margaret Hamilton',
                 'email' => 'margaret@ticket.dev',
                 'role' => 'agent',
-                'department' => 'QA & Reliability',
-                'avatarUrl' => null,
                 'assignedSystems' => ['NexaPortal Clientes'],
             ],
         ]);

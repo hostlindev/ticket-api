@@ -23,9 +23,7 @@ use Laravel\Sanctum\HasApiTokens;
     'email',
     'password',
     'role',
-    'department',
     'specialty',
-    'avatar_url',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -62,7 +60,6 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
         ];
@@ -152,13 +149,16 @@ class User extends Authenticatable
     }
 
     /**
-     * Select developer assignment fields ordered by name.
+     * Select non-admin team member assignment fields ordered by name.
      *
      * @param  Builder<User>  $query
      * @return Builder<User>
      */
     public function scopeOrderedDevelopers(Builder $query): Builder
     {
-        return $query->select(['id', 'public_id', 'name', 'email', 'specialty'])->orderBy('name');
+        return $query
+            ->select(['id', 'public_id', 'name', 'email', 'specialty'])
+            ->where('role', '!=', UserRole::Admin->value)
+            ->orderBy('name');
     }
 }

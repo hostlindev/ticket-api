@@ -2,11 +2,9 @@
 
 namespace App\Services\Tickets;
 
-use App\Enums\AppHealth;
 use App\Enums\IssueType;
 use App\Enums\TicketSeverity;
 use App\Enums\TicketStatus;
-use App\Enums\UserRole;
 use App\Models\Reporter;
 use App\Models\System;
 use App\Models\Ticket;
@@ -209,7 +207,7 @@ class TicketService
      * Ingest, classify, and deduplicate a ticket reported from the Pixibot widget into the core tickets table.
      *
      * @param  array{
-     *     system_name: string,
+     *     system_name?: ?string,
      *     error_type: string,
      *     description: string,
      *     module_route: string,
@@ -225,18 +223,18 @@ class TicketService
      *     isDuplicate: bool,
      *     alreadyResolved: bool,
      * }
+     *
+     * @throws AuthorizationException
      */
     public function ingestFromPixibot(
         array $data,
+        ?string $systemKey,
         ?UploadedFile $screenshot,
         string $ipAddress,
         ?string $requestUserAgent = null,
-        ?User $actor = null,
     ): array {
+        $system = $this->resolveSystemByApiKey($systemKey);
         $telemetry = $data['telemetry'] ?? [];
-        $clientUrl = is_array($telemetry['client'] ?? null) && is_string($telemetry['client']['url'] ?? null)
-            ? $telemetry['client']['url']
-            : null;
 
         $normalizedRoute = $this->triageService->normalizeRoute($data['module_route']);
         $layer = $this->triageService->detectLayer($telemetry);
@@ -257,8 +255,8 @@ class TicketService
 
         return DB::transaction(function () use (
             $data,
+            $system,
             $telemetry,
-            $clientUrl,
             $normalizedRoute,
             $layer,
             $issueType,
@@ -271,9 +269,7 @@ class TicketService
             $externalId,
             $email,
             $screenshot,
-            $actor,
         ): array {
-            $system = $this->resolveOrCreatePixibotSystem($data['system_name'], $clientUrl, $actor);
             $fingerprint = $this->triageService->generateFingerprint(
                 $system->id,
                 $normalizedRoute,
@@ -376,6 +372,28 @@ class TicketService
     }
 
     /**
+     * Resolve an active system by its integration API key.
+     *
+     * @throws AuthorizationException
+     */
+    public function resolveSystemByApiKey(?string $systemKey): System
+    {
+        $trimmedKey = $systemKey !== null ? trim($systemKey) : '';
+
+        if ($trimmedKey === '') {
+            throw new AuthorizationException('System API key is required.');
+        }
+
+        $system = System::query()->where('api_key', $trimmedKey)->first();
+
+        if ($system === null) {
+            throw new AuthorizationException('Invalid system API key.');
+        }
+
+        return $system;
+    }
+
+    /**
      * Resolve the target system from the X-System-Key header or systemDomain payload field.
      *
      * @throws AuthorizationException
@@ -386,13 +404,7 @@ class TicketService
         $trimmedKey = $systemKey !== null ? trim($systemKey) : '';
 
         if ($trimmedKey !== '') {
-            $system = System::query()->where('api_key', $trimmedKey)->first();
-
-            if ($system === null) {
-                throw new AuthorizationException('Invalid system API key.');
-            }
-
-            return $system;
+            return $this->resolveSystemByApiKey($trimmedKey);
         }
 
         $normalizedDomain = $systemDomain !== null ? Str::lower(trim($systemDomain)) : '';
@@ -476,66 +488,6 @@ class TicketService
         }
 
         return Str::limit((string) ($userAgent ?: 'Unknown'), 255, '');
-    }
-
-    /**
-     * Find an existing core system by name or create one for a newly ingested Pixibot system.
-     */
-    private function resolveOrCreatePixibotSystem(string $systemName, ?string $clientUrl, ?User $actor): System
-    {
-        $trimmedName = trim($systemName);
-
-        $existing = System::query()
-            ->where('id', $trimmedName)
-            ->orWhereRaw('LOWER(name) = ?', [Str::lower($trimmedName)])
-            ->first();
-
-        if ($existing !== null) {
-            return $existing;
-        }
-
-        $slug = Str::slug($trimmedName) ?: substr(md5($trimmedName), 0, 8);
-        $systemId = 'app-'.$slug;
-
-        if (System::withTrashed()->where('id', $systemId)->exists()) {
-            $systemId .= '-'.substr(md5($trimmedName), 0, 6);
-        }
-
-        $domain = $this->resolveUniqueSystemDomain($slug, $systemId, $clientUrl);
-
-        $system = System::query()->create([
-            'id' => $systemId,
-            'name' => $trimmedName,
-            'domain' => $domain,
-            'health' => AppHealth::Operational,
-            'uptime' => 99.90,
-        ]);
-
-        if ($actor !== null && $actor->role === UserRole::Developer) {
-            $system->developers()->syncWithoutDetaching([$actor->id]);
-        }
-
-        return $system;
-    }
-
-    /**
-     * Pick a unique domain from the client URL host or fall back to a deterministic local domain.
-     */
-    private function resolveUniqueSystemDomain(string $slug, string $systemId, ?string $clientUrl): string
-    {
-        if (is_string($clientUrl) && trim($clientUrl) !== '') {
-            $host = parse_url(trim($clientUrl), PHP_URL_HOST);
-
-            if (is_string($host) && $host !== '' && ! System::withTrashed()->where('domain', Str::lower($host))->exists()) {
-                return Str::lower($host);
-            }
-        }
-
-        $fallback = "{$slug}.local";
-
-        return System::withTrashed()->where('domain', $fallback)->exists()
-            ? "{$systemId}.local"
-            : $fallback;
     }
 
     /**

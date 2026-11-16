@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 #[Fillable([
     'id',
@@ -49,10 +50,16 @@ class System extends Model
     ];
 
     /**
-     * Bootstrap the model and cascade soft-deletes to dependent records.
+     * Bootstrap the model, generate an API key when omitted, and cascade soft-deletes.
      */
     protected static function booted(): void
     {
+        static::creating(function (System $system): void {
+            if (empty($system->api_key)) {
+                $system->api_key = self::generateApiKey();
+            }
+        });
+
         static::deleting(function (System $system): void {
             if ($system->isForceDeleting()) {
                 return;
@@ -61,6 +68,14 @@ class System extends Model
             $system->tickets()->delete();
             $system->developers()->detach();
         });
+    }
+
+    /**
+     * Generate a system integration API key with the `sk_sys_` prefix.
+     */
+    public static function generateApiKey(): string
+    {
+        return 'sk_sys_'.Str::random(32);
     }
 
     /**

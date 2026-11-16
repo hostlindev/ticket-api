@@ -3,6 +3,8 @@
 namespace App\Modules\Helpdesk\Requests;
 
 use App\Enums\IssueType;
+use App\Services\Tickets\TicketService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -34,10 +36,14 @@ class StorePixibotTicketRequest extends FormRequest
     ];
 
     /**
-     * Determine if the user is authorized to make this request.
+     * Authorize the request by verifying an enabled system's X-System-Key header.
+     *
+     * @throws AuthorizationException
      */
-    public function authorize(): bool
+    public function authorize(TicketService $ticketService): bool
     {
+        $ticketService->resolveSystemByApiKey($this->header('X-System-Key'));
+
         return true;
     }
 
@@ -107,7 +113,7 @@ class StorePixibotTicketRequest extends FormRequest
         ]));
 
         return [
-            'system_name' => ['required', 'string', 'max:100'],
+            'system_name' => ['nullable', 'string', 'max:100'],
             'error_type' => ['required', 'string', Rule::in($allowedErrorTypes)],
             'description' => ['required', 'string', 'min:10'],
             'module_route' => ['required', 'string', 'max:255'],

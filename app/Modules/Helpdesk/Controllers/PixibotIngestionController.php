@@ -19,10 +19,10 @@ class PixibotIngestionController extends Controller
     {
         $result = $this->ticketService->ingestFromPixibot(
             data: $request->validated(),
+            systemKey: $request->header('X-System-Key'),
             screenshot: $request->file('screenshot'),
             ipAddress: $request->ip() ?? '0.0.0.0',
             requestUserAgent: $request->userAgent(),
-            actor: $request->user('sanctum'),
         );
 
         /** @var Ticket $ticket */

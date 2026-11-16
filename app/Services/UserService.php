@@ -33,7 +33,7 @@ class UserService
     }
 
     /**
-     * List all team members available for system assignment.
+     * List all non-admin team members available for system assignment.
      *
      * @return Collection<int, User>
      */

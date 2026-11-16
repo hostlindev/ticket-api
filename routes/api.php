@@ -29,6 +29,13 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard.index');
 
+    Route::get('/systems/lead', [SystemController::class, 'lead'])
+        ->name('systems.lead');
+    Route::get('/systems/{system}/api-key', [SystemController::class, 'showApiKey'])
+        ->name('systems.api_key.show');
+    Route::post('/systems/{system}/api-key', [SystemController::class, 'rotateApiKey'])
+        ->name('systems.api_key.rotate');
+
     Route::get('/tickets', [TicketController::class, 'index'])
         ->name('tickets.index');
     Route::get('/tickets/summary', [TicketController::class, 'summary'])
@@ -41,6 +48,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::middleware('role:admin')->group(function (): void {
         Route::get('/systems', [SystemController::class, 'index'])
             ->name('systems.index');
+        Route::post('/systems', [SystemController::class, 'store'])
+            ->name('systems.store');
         Route::get('/systems/{system}', [SystemController::class, 'show'])
             ->name('systems.show');
         Route::match(['put', 'patch'], '/systems/{system}', [SystemController::class, 'update'])

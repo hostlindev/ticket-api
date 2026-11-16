@@ -24,7 +24,6 @@ class StoreUserRequest extends FormRequest
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', Rule::enum(UserRole::class)],
-            'department' => ['nullable', 'string', 'max:255'],
             'specialty' => ['nullable', 'string', 'max:255'],
         ];
     }

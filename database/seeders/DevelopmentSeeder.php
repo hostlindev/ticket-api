@@ -44,7 +44,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Ada Lovelace',
                 'email' => 'admin@ticket.dev',
                 'role' => UserRole::Admin,
-                'department' => 'Frontend & Web Platforms',
                 'specialty' => 'Plataforma',
             ],
             [
@@ -52,7 +51,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Tim Berners-Lee',
                 'email' => 'tim@ticket.dev',
                 'role' => UserRole::Developer,
-                'department' => 'Frontend & Web Platforms',
                 'specialty' => 'Frontend',
             ],
             [
@@ -60,7 +58,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Grace Hopper',
                 'email' => 'grace@ticket.dev',
                 'role' => UserRole::Developer,
-                'department' => 'Core Backend & APIs',
                 'specialty' => 'Backend',
             ],
             [
@@ -68,7 +65,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Linus Torvalds',
                 'email' => 'linus@ticket.dev',
                 'role' => UserRole::Developer,
-                'department' => 'Platform Infrastructure',
                 'specialty' => 'Plataforma',
             ],
             [
@@ -76,7 +72,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Margaret Hamilton',
                 'email' => 'margaret@ticket.dev',
                 'role' => UserRole::Agent,
-                'department' => 'QA & Reliability',
                 'specialty' => 'QA',
             ],
             [
@@ -84,7 +79,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Alan Turing',
                 'email' => 'alan@ticket.dev',
                 'role' => UserRole::Developer,
-                'department' => 'Data & Analytics',
                 'specialty' => 'Datos',
             ],
             [
@@ -92,7 +86,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Barbara Liskov',
                 'email' => 'barbara@ticket.dev',
                 'role' => UserRole::Developer,
-                'department' => 'Core Backend & APIs',
                 'specialty' => 'Backend',
             ],
             [
@@ -100,7 +93,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Ken Thompson',
                 'email' => 'ken@ticket.dev',
                 'role' => UserRole::Developer,
-                'department' => 'Platform Infrastructure',
                 'specialty' => 'Plataforma',
             ],
             [
@@ -108,7 +100,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Donald Knuth',
                 'email' => 'donald@ticket.dev',
                 'role' => UserRole::Developer,
-                'department' => 'Data & Analytics',
                 'specialty' => 'Datos',
             ],
             [
@@ -116,7 +107,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Brendan Eich',
                 'email' => 'brendan@ticket.dev',
                 'role' => UserRole::Developer,
-                'department' => 'Frontend & Web Platforms',
                 'specialty' => 'Frontend',
             ],
             [
@@ -124,7 +114,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Katherine Johnson',
                 'email' => 'katherine@ticket.dev',
                 'role' => UserRole::Agent,
-                'department' => 'QA & Reliability',
                 'specialty' => 'QA',
             ],
             [
@@ -132,7 +121,6 @@ class DevelopmentSeeder extends Seeder
                 'name' => 'Yukihiro Matsumoto',
                 'email' => 'matz@ticket.dev',
                 'role' => UserRole::Agent,
-                'department' => 'Customer Operations',
                 'specialty' => 'Backend',
             ],
         ];
@@ -144,12 +132,9 @@ class DevelopmentSeeder extends Seeder
                 'public_id' => $member['public_id'],
                 'name' => $member['name'],
                 'email' => $member['email'],
-                'email_verified_at' => now(),
                 'password' => $hashedPassword,
                 'role' => $member['role'],
-                'department' => $member['department'],
                 'specialty' => $member['specialty'],
-                'avatar_url' => null,
             ]);
 
             $seeded->put($member['public_id'], $user);

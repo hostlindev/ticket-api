@@ -24,8 +24,6 @@ class AuthUserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role instanceof UserRole ? $this->role->value : (string) $this->role,
-            'department' => $this->department,
-            'avatarUrl' => $this->avatar_url,
             'assignedSystems' => $this->whenLoaded(
                 'systems',
                 fn (): array => $this->systems->pluck('name')->values()->all(),

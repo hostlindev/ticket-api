@@ -14,6 +14,25 @@ use Laravel\Sanctum\Sanctum;
 uses(RefreshDatabase::class);
 
 /**
+ * Build Pixibot ingestion headers for an enabled system.
+ *
+ * @return array<string, string>
+ */
+function pixibotHeaders(?System $system = null): array
+{
+    $resolvedSystem = $system ?? System::query()->where('id', 'app-sai')->first() ?? System::factory()->create([
+        'id' => 'app-sai',
+        'name' => 'SAI',
+        'domain' => 'sai.ticket.dev',
+    ]);
+
+    return [
+        'Accept' => 'application/json',
+        'X-System-Key' => (string) $resolvedSystem->api_key,
+    ];
+}
+
+/**
  * Build a valid base payload for Pixibot ticket ingestion.
  *
  * @param  array<string, mixed>  $overrides
@@ -47,7 +66,7 @@ it('classifies backend, frontend, integracion, and por_definir layers from telem
         'telemetry' => json_encode($telemetry, JSON_THROW_ON_ERROR),
     ]);
 
-    $response = $this->post('/api/v1/pixibot/tickets', $payload, ['Accept' => 'application/json']);
+    $response = $this->post('/api/v1/pixibot/tickets', $payload, pixibotHeaders());
 
     $response->assertCreated()
         ->assertJsonPath('layer_detected', $expectedLayer)
@@ -86,6 +105,8 @@ it('classifies backend, frontend, integracion, and por_definir layers from telem
 ]);
 
 it('deduplicates tickets across normalized dynamic module routes and increments parent occurrences', function (): void {
+    $headers = pixibotHeaders();
+
     $firstResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload([
         'module_route' => '/expedientes/10/editar',
         'telemetry' => json_encode([
@@ -94,7 +115,7 @@ it('deduplicates tickets across normalized dynamic module routes and increments 
             'js_error' => null,
             'last_ui_action' => 'button:guardar',
         ], JSON_THROW_ON_ERROR),
-    ]), ['Accept' => 'application/json']);
+    ]), $headers);
 
     $firstResponse->assertCreated();
     $parentId = $firstResponse->json('ticket_id');
@@ -107,7 +128,7 @@ it('deduplicates tickets across normalized dynamic module routes and increments 
             'js_error' => null,
             'last_ui_action' => 'button:guardar',
         ], JSON_THROW_ON_ERROR),
-    ]), ['Accept' => 'application/json']);
+    ]), $headers);
 
     $secondResponse->assertCreated()
         ->assertJsonPath('parent_ticket_id', $parentId)
@@ -125,6 +146,8 @@ it('deduplicates tickets across normalized dynamic module routes and increments 
 });
 
 it('creates a new open parent ticket on the same module route when the error differs', function (array $secondTelemetry): void {
+    $headers = pixibotHeaders();
+
     $firstResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload([
         'module_route' => '/expedientes/10/editar',
         'telemetry' => json_encode([
@@ -133,14 +156,14 @@ it('creates a new open parent ticket on the same module route when the error dif
             'js_error' => null,
             'last_ui_action' => 'button:guardar',
         ], JSON_THROW_ON_ERROR),
-    ]), ['Accept' => 'application/json']);
+    ]), $headers);
 
     $firstResponse->assertCreated();
 
     $secondResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload([
         'module_route' => '/expedientes/10/editar',
         'telemetry' => json_encode($secondTelemetry, JSON_THROW_ON_ERROR),
-    ]), ['Accept' => 'application/json']);
+    ]), $headers);
 
     $secondResponse->assertCreated()
         ->assertJsonPath('parent_ticket_id', null)
@@ -168,8 +191,9 @@ it('creates a new open parent ticket on the same module route when the error dif
 
 it('notifies user when an identical incident was resolved within the last 48 hours', function (): void {
     $this->travelTo(now()->startOfSecond());
+    $headers = pixibotHeaders();
 
-    $firstResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload(), ['Accept' => 'application/json']);
+    $firstResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload(), $headers);
     $firstResponse->assertCreated();
 
     $parentTicket = Ticket::findOrFail($firstResponse->json('ticket_id'));
@@ -177,7 +201,7 @@ it('notifies user when an identical incident was resolved within the last 48 hou
 
     $this->travel(47)->hours();
 
-    $secondResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload(), ['Accept' => 'application/json']);
+    $secondResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload(), $headers);
 
     $secondResponse->assertCreated()
         ->assertJsonPath('parent_ticket_id', $parentTicket->id)
@@ -188,8 +212,9 @@ it('notifies user when an identical incident was resolved within the last 48 hou
 
 it('creates a new open ticket when an identical resolved incident is older than 48 hours', function (): void {
     $this->travelTo(now()->startOfSecond());
+    $headers = pixibotHeaders();
 
-    $firstResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload(), ['Accept' => 'application/json']);
+    $firstResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload(), $headers);
     $firstResponse->assertCreated();
 
     $parentTicket = Ticket::findOrFail($firstResponse->json('ticket_id'));
@@ -197,7 +222,7 @@ it('creates a new open ticket when an identical resolved incident is older than 
 
     $this->travel(49)->hours();
 
-    $secondResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload(), ['Accept' => 'application/json']);
+    $secondResponse = $this->post('/api/v1/pixibot/tickets', pixibotPayload(), $headers);
 
     $secondResponse->assertCreated()
         ->assertJsonPath('parent_ticket_id', null)
@@ -220,7 +245,7 @@ it('stores multipart screenshot attachment, normalized uuid route, and links exi
         'system_name' => 'SAI',
         'module_route' => '/usuarios/550e8400-e29b-41d4-a716-446655440000/perfil',
         'screenshot' => $screenshot,
-    ]), ['Accept' => 'application/json']);
+    ]), pixibotHeaders($existingSystem));
 
     $response->assertCreated();
 
@@ -241,13 +266,12 @@ it('stores multipart screenshot attachment, normalized uuid route, and links exi
 
 it('returns 422 validation errors when required fields or JSON payloads are invalid', function (): void {
     $response = $this->post('/api/v1/pixibot/tickets', [
-        'system_name' => '',
         'error_type' => 'invalido',
         'description' => 'corto',
         'module_route' => '',
         'reporter_data' => '{json-invalido',
         'telemetry' => '{json-invalido',
-    ], ['Accept' => 'application/json']);
+    ], pixibotHeaders());
 
     $response->assertUnprocessable()
         ->assertJsonPath('code', 'ERR_VALIDATION')
@@ -255,7 +279,6 @@ it('returns 422 validation errors when required fields or JSON payloads are inva
             'code',
             'message',
             'errors' => [
-                'system_name',
                 'error_type',
                 'description',
                 'module_route',
@@ -292,7 +315,7 @@ it('ingests frontend widget multipart payload on POST /api/tickets when source i
         ],
         'browser' => 'Chrome 131 / Windows',
         'screenshot' => $screenshot,
-    ], ['Accept' => 'application/json']);
+    ], pixibotHeaders());
 
     $response->assertCreated()
         ->assertJsonPath('layer_detected', 'backend')
@@ -323,6 +346,13 @@ it('ingests frontend widget multipart payload on POST /api/tickets when source i
 });
 
 it('deduplicates frontend widget payloads across POST /api/tickets and POST /api/v1/pixibot/tickets', function (): void {
+    $gensadi = System::factory()->create([
+        'id' => 'app-gensadi',
+        'name' => 'GENSADI',
+        'domain' => 'gensadi.ticket.dev',
+    ]);
+    $headers = pixibotHeaders($gensadi);
+
     $firstResponse = $this->post('/api/tickets', [
         'issue_type' => 'bug',
         'description' => 'Primer reporte del widget pixibot en expediente.',
@@ -339,7 +369,7 @@ it('deduplicates frontend widget payloads across POST /api/tickets and POST /api
             'failed_endpoint' => '/api/expedientes/12',
         ],
         'browser' => 'Firefox 132',
-    ], ['Accept' => 'application/json']);
+    ], $headers);
 
     $firstResponse->assertCreated();
     $parentId = $firstResponse->json('ticket_id');
@@ -360,7 +390,7 @@ it('deduplicates frontend widget payloads across POST /api/tickets and POST /api
             'failed_endpoint' => '/api/expedientes/99',
         ],
         'browser' => 'Chrome 131',
-    ], ['Accept' => 'application/json']);
+    ], $headers);
 
     $secondResponse->assertCreated()
         ->assertJsonPath('parent_ticket_id', $parentId)
@@ -373,15 +403,14 @@ it('deduplicates frontend widget payloads across POST /api/tickets and POST /api
 it('returns 422 validation errors on POST /api/tickets when source is pixibot and widget fields are invalid', function (): void {
     $response = $this->post('/api/tickets', [
         'source' => 'pixibot',
-        'issue_type' => 'bug',
+        'issue_type' => 'invalido',
         'description' => 'corto',
-        'system' => '',
         'reporter' => [
             'id' => '',
             'name' => '',
             'email' => 'correo-invalido',
         ],
-    ], ['Accept' => 'application/json']);
+    ], pixibotHeaders());
 
     $response->assertUnprocessable()
         ->assertJsonPath('code', 'ERR_VALIDATION')
@@ -389,7 +418,7 @@ it('returns 422 validation errors on POST /api/tickets when source is pixibot an
             'code',
             'message',
             'errors' => [
-                'system_name',
+                'error_type',
                 'description',
                 'reporter_data.id',
                 'reporter_data.name',
@@ -406,6 +435,7 @@ it('lists master ticket with occurrencesCount and hides duplicates from GET /api
     ]);
     $system = System::factory()->create(['id' => 'app-sai', 'name' => 'SAI']);
     $system->developers()->attach($developer->id);
+    $headers = pixibotHeaders($system);
 
     Sanctum::actingAs($developer);
 
@@ -425,7 +455,7 @@ it('lists master ticket with occurrencesCount and hides duplicates from GET /api
             'failed_endpoint' => '/api/personas',
         ],
         'browser' => 'Chrome 155 · Linux',
-    ], ['Accept' => 'application/json']);
+    ], $headers);
 
     $firstResponse->assertCreated()
         ->assertJsonPath('is_duplicate', false);
@@ -448,7 +478,7 @@ it('lists master ticket with occurrencesCount and hides duplicates from GET /api
             'failed_endpoint' => '/api/personas',
         ],
         'browser' => 'Chrome 155 · Linux',
-    ], ['Accept' => 'application/json']);
+    ], $headers);
 
     $duplicateResponse->assertCreated()
         ->assertJsonPath('is_duplicate', true)
@@ -466,4 +496,107 @@ it('lists master ticket with occurrencesCount and hides duplicates from GET /api
     $this->getJson('/api/tickets/summary')
         ->assertOk()
         ->assertJsonPath('data.total', 1);
+});
+
+it('rejects pixibot reports with 403 ERR_FORBIDDEN when X-System-Key is missing, invalid, or belongs to a deleted system', function (string $endpoint, ?string $headerKey): void {
+    $deletedSystem = System::factory()->create(['api_key' => 'sk_sys_deleted_key']);
+    $deletedSystem->delete();
+
+    $headers = ['Accept' => 'application/json'];
+
+    if ($headerKey !== null) {
+        $headers['X-System-Key'] = $headerKey === 'deleted' ? 'sk_sys_deleted_key' : $headerKey;
+    }
+
+    $response = $this->post($endpoint, [
+        'source' => 'pixibot',
+        'issue_type' => 'bug',
+        'description' => 'Intento de reporte sin API key valida del sistema.',
+        'module_route' => '/inicio',
+        'reporter' => [
+            'id' => '1',
+            'name' => 'Usuario Prueba',
+            'email' => 'test@ticket.dev',
+        ],
+    ], $headers);
+
+    $response->assertForbidden()
+        ->assertJsonPath('code', 'ERR_FORBIDDEN');
+
+    expect(Ticket::count())->toBe(0);
+})->with([
+    'missing key on /api/v1/pixibot/tickets' => ['/api/v1/pixibot/tickets', null],
+    'invalid key on /api/v1/pixibot/tickets' => ['/api/v1/pixibot/tickets', 'sk_invalid_key'],
+    'deleted system key on /api/v1/pixibot/tickets' => ['/api/v1/pixibot/tickets', 'deleted'],
+    'missing key on /api/tickets?source=pixibot' => ['/api/tickets', null],
+    'invalid key on /api/tickets?source=pixibot' => ['/api/tickets', 'sk_invalid_key'],
+    'deleted system key on /api/tickets?source=pixibot' => ['/api/tickets', 'deleted'],
+]);
+
+it('resolves the target system strictly from X-System-Key even when system name is omitted in pixibot payload', function (): void {
+    $system = System::factory()->create([
+        'id' => 'app-redoc',
+        'name' => 'REDOC',
+        'domain' => 'redoc.ticket.dev',
+    ]);
+
+    $response = $this->post('/api/tickets', [
+        'source' => 'pixibot',
+        'issue_type' => 'bug',
+        'description' => 'Reporte enviado configurando solo el API key del widget.',
+        'reporter' => [
+            'id' => '99',
+            'name' => 'Lucia Torres',
+            'email' => 'ltorres@ticket.dev',
+        ],
+        'client' => [
+            'route' => '/documentos/42',
+            'http_status' => '500',
+        ],
+    ], pixibotHeaders($system));
+
+    $response->assertCreated()
+        ->assertJsonPath('layer_detected', 'backend');
+
+    $ticket = Ticket::with('system')->findOrFail($response->json('ticket_id'));
+
+    expect($ticket->system->id)->toBe('app-redoc')
+        ->and($ticket->system->name)->toBe('REDOC')
+        ->and($ticket->module_route)->toBe('/documentos/:id');
+});
+
+it('automatically generates an api_key when a system is created without one and enables pixibot and widget ingestion', function (): void {
+    $system = System::create([
+        'id' => 'app-nuevo-sistema',
+        'name' => 'NuevoSistema',
+        'domain' => 'nuevosistema.ticket.dev',
+    ]);
+
+    expect($system->api_key)->toBeString()->toStartWith('sk_sys_')
+        ->and(strlen((string) $system->api_key))->toBe(39);
+
+    $pixibotResponse = $this->post('/api/tickets', [
+        'issue_type' => 'bug',
+        'description' => 'Primer ticket pixibot usando la api_key autogenerada del sistema.',
+        'source' => 'pixibot',
+        'reporter' => [
+            'id' => 'usr_100',
+            'name' => 'Reportero Uno',
+            'email' => 'rep1@ticket.dev',
+        ],
+    ], pixibotHeaders($system));
+
+    $pixibotResponse->assertCreated();
+
+    $widgetResponse = $this->withHeaders([
+        'X-System-Key' => (string) $system->api_key,
+    ])->postJson('/api/tickets', [
+        'description' => 'Segundo ticket usando la api_key autogenerada del sistema.',
+        'issueType' => 'not_working',
+        'reporterName' => 'Reportero Dos',
+        'reporterEmail' => 'rep2@ticket.dev',
+    ]);
+
+    $widgetResponse->assertCreated()
+        ->assertJsonPath('data.system', 'NuevoSistema');
 });

@@ -24,6 +24,7 @@ describe('authentication and authorization', function (): void {
             ->assertJsonStructure(['code', 'message', 'errors']);
     })->with([
         'GET /systems/{system}' => ['GET', '/api/systems/app-nexaportal'],
+        'POST /systems' => ['POST', '/api/systems'],
         'PUT /systems/{system}' => ['PUT', '/api/systems/app-nexaportal'],
         'PATCH /systems/{system}' => ['PATCH', '/api/systems/app-nexaportal'],
         'DELETE /systems/{system}' => ['DELETE', '/api/systems/app-nexaportal'],
@@ -46,6 +47,8 @@ describe('authentication and authorization', function (): void {
     })->with([
         'agent GET /systems/{system}' => [UserRole::Agent, 'GET', '/api/systems/app-nexaportal', []],
         'developer GET /systems/{system}' => [UserRole::Developer, 'GET', '/api/systems/app-nexaportal', []],
+        'agent POST /systems' => [UserRole::Agent, 'POST', '/api/systems', ['name' => 'NewSys', 'domain' => 'new.ticket.dev', 'leadId' => 'usr_1']],
+        'developer POST /systems' => [UserRole::Developer, 'POST', '/api/systems', ['name' => 'NewSys', 'domain' => 'new.ticket.dev', 'leadId' => 'usr_1']],
         'agent PUT /systems/{system}' => [UserRole::Agent, 'PUT', '/api/systems/app-nexaportal', ['name' => 'Updated']],
         'developer PUT /systems/{system}' => [UserRole::Developer, 'PUT', '/api/systems/app-nexaportal', ['name' => 'Updated']],
         'agent PATCH /systems/{system}' => [UserRole::Agent, 'PATCH', '/api/systems/app-nexaportal', ['name' => 'Updated']],
@@ -61,6 +64,7 @@ describe('authentication and authorization', function (): void {
         $gate = Gate::forUser($user);
 
         expect($gate->allows('view', $system))->toBe($expected)
+            ->and($gate->allows('create', System::class))->toBe($expected)
             ->and($gate->allows('update', $system))->toBe($expected)
             ->and($gate->allows('delete', $system))->toBe($expected);
     })->with([
@@ -175,6 +179,108 @@ describe('GET /api/systems/{system}', function (): void {
             ->assertJsonPath('code', 'ERR_NOT_FOUND')
             ->assertJsonStructure(['code', 'message', 'errors']);
     });
+});
+
+describe('POST /api/systems', function (): void {
+    it('creates a new system with an assigned leadId, auto-generates api_key, and enables pixibot reporting', function (): void {
+        $admin = User::factory()->admin()->create(['public_id' => 'usr_ada']);
+        $lead = User::factory()->developer()->create([
+            'public_id' => 'usr_grace',
+            'name' => 'Grace Hopper',
+            'email' => 'grace@ticket.dev',
+            'specialty' => 'Backend',
+        ]);
+        $dev = User::factory()->developer()->create([
+            'public_id' => 'usr_tim',
+            'name' => 'Tim Berners-Lee',
+            'email' => 'tim@ticket.dev',
+            'specialty' => 'Frontend',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/systems', [
+            'name' => 'Portal Ciudadano',
+            'domain' => 'PORTAL.GOB.PA',
+            'leadId' => 'usr_grace',
+            'developerIds' => ['usr_tim'],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.id', 'app-portal-ciudadano')
+            ->assertJsonPath('data.name', 'Portal Ciudadano')
+            ->assertJsonPath('data.domain', 'portal.gob.pa')
+            ->assertJsonPath('data.health', AppHealth::Operational->value)
+            ->assertJsonPath('data.uptime', 99.9)
+            ->assertJsonPath('data.lead', [
+                'id' => 'usr_grace',
+                'name' => 'Grace Hopper',
+                'email' => 'grace@ticket.dev',
+                'specialty' => 'Backend',
+            ])
+            ->assertJsonPath('data.developers.0.id', 'usr_tim');
+
+        $system = System::query()->findOrFail('app-portal-ciudadano');
+
+        expect($system->lead_user_id)->toBe($lead->id)
+            ->and($system->api_key)->toBeString()->toStartWith('sk_sys_');
+
+        $pixibotResponse = $this->withHeaders([
+            'X-System-Key' => (string) $system->api_key,
+        ])->postJson('/api/tickets', [
+            'source' => 'pixibot',
+            'issue_type' => 'bug',
+            'description' => 'Reporte de prueba sobre sistema recien creado.',
+            'module_route' => '/tramites',
+            'reporter' => [
+                'id' => 'ext_1',
+                'name' => 'Ciudadano Uno',
+                'email' => 'ciudadano@gob.pa',
+            ],
+        ]);
+
+        $pixibotResponse->assertCreated();
+    });
+
+    it('requires leadId and validates uniqueness and active user existence when creating a system', function (array $payload, string $expectedErrorKey): void {
+        $admin = User::factory()->admin()->create(['public_id' => 'usr_ada']);
+        $deletedLead = User::factory()->developer()->create(['public_id' => 'usr_deleted']);
+        $deletedLead->delete();
+
+        System::factory()->create([
+            'name' => 'SAI',
+            'domain' => 'sai.ticket.dev',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $basePayload = [
+            'name' => 'Nuevo Sistema',
+            'domain' => 'nuevo.ticket.dev',
+            'leadId' => 'usr_ada',
+        ];
+
+        if ($payload === ['omit_lead' => true]) {
+            unset($basePayload['leadId']);
+        } else {
+            $basePayload = array_merge($basePayload, $payload);
+        }
+
+        $response = $this->postJson('/api/systems', $basePayload);
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('code', 'ERR_VALIDATION')
+            ->assertJsonStructure(['code', 'message', 'errors' => [$expectedErrorKey]]);
+    })->with([
+        'missing leadId' => [['omit_lead' => true], 'leadId'],
+        'null leadId' => [['leadId' => null], 'leadId'],
+        'unknown leadId' => [['leadId' => 'usr_unknown'], 'leadId'],
+        'soft-deleted leadId' => [['leadId' => 'usr_deleted'], 'leadId'],
+        'duplicate name' => [['name' => 'SAI'], 'name'],
+        'duplicate domain (case-insensitive)' => [['domain' => 'SAI.TICKET.DEV'], 'domain'],
+        'missing name' => [['name' => ''], 'name'],
+        'missing domain' => [['domain' => ''], 'domain'],
+    ]);
 });
 
 describe('PUT and PATCH /api/systems/{system}', function (): void {
